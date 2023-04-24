@@ -16,12 +16,9 @@ found in the below two papers that build one on top of the other.
 /*
 - (each word slot is uniquely identiﬁed, but mutual constraints among words are maintained with variable sharing
 */
-crossword(EnumBoxes, Slots) :- % Solution is gonna be a List of Slots filled in!
+crossword(Boxes, Slots, WordsLetters) :- % Solution is gonna be a List of Slots filled in!
 
     % 1. MODELING/TEMPLATING:
-    %   v Make Boxes
-    %   - Make Slots
-    %   ? Play with words ?
 
     % a. get dimnsion from global state
     dimension(N),
@@ -31,55 +28,134 @@ crossword(EnumBoxes, Slots) :- % Solution is gonna be a List of Slots filled in!
 
     % c. Get the box/3 triples and enumerate them
     get_boxes(AnotherN, Boxes),
-    enum_boxes(Boxes, EnumBoxes),
+    %enum_boxes(Boxes, EnumBoxes),
 
     % d. Get Slots and enumerate them
-    get_slots(AnotherN, Slots).
+    get_slots(Boxes, AnotherN, Slots),
     %enum_slots(Slots, EnumSlots).
 
-    % 3. Solve
+    % 2. Play with words
+    words(Words),
+    words_transform(Words, EnumWords).
+
+    % 3. Solusolve
+    %solve(EnumWords, Slots),
+    %words_transform(WordsLetters, Slots).
 
     % 4. Print
+
+solve([], []).
+solve([W|Words], Slots) :-
+	select(W, Slots, SlotsR),
+	solve(Words, SlotsR).
+
+words_transform([], []).
+words_transform([W|Words], [WT|Transformed]) :-
+    words_transform(Words, Transformed),
+
+    name(W, WT).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %                               Slots                                         %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Master Slots, calls horizontal and vertical workers.
-get_slots(N, Slots) :-
+get_slots(Boxes, N, Slots) :-
 
-    get_horizontal_slots(N, SlotsH),
-    get_vertical_slots(N, SlotsV),
-    append(SlotsH, SlotsV, Slots).
+    %get_horizontal_slots(Boxes, N, SlotsH),
+    %get_vertical_slots(Boxes, N, SlotsV),
+    make_slots_vertical(Boxes, N, N, 1, Slots, []).
+
+    %append(SlotsH, SlotsV, Slots).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %                            Vertical                              %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% TODO:
-get_vertical_slots(N, Slots) :- get_vertical_slots(N, 1, Slots), !.
+% construct_sites_vertical/6 :- (+, +, +, +, -, -)
+% Check whether current column > N
+make_slots_vertical(_, _, MaxCol, Col, Slots, Slots) :- Col > MaxCol, !.
 
-get_vertical_slots(N, N, []). % Base
-get_vertical_slots(N, Col, Slots) :-
+% Call the bigger preds 
+make_slots_vertical(Boxes, MaxRow, MaxCol, Col, Slots, AccSlots) :-
+
+    make_slots_vertical(Boxes, MaxRow, MaxCol, 1, Col, AccSlots1, AccSlots),
+    Col1 is Col + 1,
+	make_slots_vertical(Boxes, MaxRow, MaxCol, Col1, Slots, AccSlots1).
+
+% construct_sites_vertical/7 :- ()
+% Check whether current row > N
+make_slots_vertical(_, MaxRow, _, Row, _, Slots, Slots) :- Row > MaxRow, !.
+
+% Scraper, fails if the current one is black or there is only 1 box and then black.
+make_slots_vertical(Boxes, MaxRow, MaxCol, Row, Col, Slots, AccSlots) :-
+    
+    % 1. Get me the first Slot you find
+    get_slot_v(Boxes, Row, Col, Slot, Incr), !,
+
+    % 2. Augment
+    Row1 is Row + Incr,
+    AccSlots1 = [Slot|AccSlots],
+
+    % 3. Recoursa
+    make_slots_vertical(Boxes, MaxRow, MaxCol, Row1, Col, Slots, AccSlots1).
+
+% Skipper, goes over the blacks
+make_slots_vertical(Boxes, MaxRow, MaxCol, Row, Col, Slots, AccSlots) :-
+    Row1 is Row + 1,
+    make_slots_vertical(Boxes, MaxRow, MaxCol, Row1, Col, Slots, AccSlots).
+
+% Runs only the first time.
+get_slot_v(Boxes, Row, Col, [X,Y|Cs], Incr) :-
+   
+    % 1. Get a box with anon value X
+    member( box(Row, Col, X), Boxes),
+
+    % 2. Get next box with anon value Y
+    Row1 is Row+1,
+    member( box(Row1, Col, Y), Boxes),
+
+    % 3. Success, continue construction one by one.
+    Row2 is Row1+1,
+    continue_slot_v(Boxes, Row2, Col, Cs, 3, Incr).
+
+% Runs after construct is successful.
+% Adds next element to current Slot.
+continue_slot_v(Boxes, Row, Col, [X|Cs], Acc, Incr) :-
+
+    member( box(Row, Col, X), Boxes), !,
+    Acc1 is Acc + 1,
+    Row1 is Row + 1,
+    continue_slot_v(Boxes, Row1, Col, Cs, Acc1, Incr).
+
+% Unify, base
+continue_slot_v(_, _, _, [], Incr, Incr).
+
+/*
+% TODO:
+get_vertical_slots(Boxes, N, Slots) :- get_vertical_slots(Boxes, N, 1, Slots), !.
+
+get_vertical_slots(_, N, N, []). % Base
+get_vertical_slots(Boxes, N, Col, Slots) :-
 
     % 1. Recursive Step
     Col1 is Col + 1,
-    get_vertical_slots(N, Col1, Slots1),
+    get_vertical_slots(Boxes, N, Col1, Slots1),
 
     % 2. Get the blacks of this Row
     findall(Row, black(Row, Col), Blacks),
 
     % 3. Magic
-    scrap_column(N, Col, Blacks, ColSlots, [], 0),
+    scrap_column(Boxes, N, Col, Blacks, ColSlots, [], 0),
 
     % 4. Concat
     reverse(ColSlots, ColSlots1),
     append(ColSlots1, Slots1, Slots).
 
 % Special Cay
-scrap_column(N, Col, [], Slots, SlotsAcc, PrevBlack) :-
+scrap_column(Boxes, N, Col, [], Slots, SlotsAcc, PrevBlack) :-
 
-    get_vslot(Col, N, PrevBlack, Slot),
+    get_vslot(Boxes, Col, N, PrevBlack, Slot),
 
     length(Slot, LSL),
     (LSL < 2 ->
@@ -89,62 +165,72 @@ scrap_column(N, Col, [], Slots, SlotsAcc, PrevBlack) :-
     ).
 
 % Main case
-scrap_column(N, Col, [Black|Blacks], Slots, SlotsAcc, PrevBlack) :-
+scrap_column(Boxes, N, Col, [Black|Blacks], Slots, SlotsAcc, PrevBlack) :-
 
     % 1. Get the slot from PrevBlack till Current Black
-    get_vslot(Col, Black, PrevBlack, Slot),
+    get_vslot(Boxes, Col, Black, PrevBlack, Slot),
 
     PrevBlack1 is Black,
 
     length(Slot, LSL),
     (LSL < 2 ->
-        scrap_column(N, Col, Blacks, Slots, SlotsAcc, PrevBlack1)
+        scrap_column(Boxes, N, Col, Blacks, Slots, SlotsAcc, PrevBlack1)
     ;
-        scrap_column(N, Col, Blacks, Slots, [Slot|SlotsAcc], PrevBlack1)
+        scrap_column(Boxes, N, Col, Blacks, Slots, [Slot|SlotsAcc], PrevBlack1)
     ).
 
 % get_vslot/ :-
-get_vslot(Col, Row, PrevBlack, Slot) :-
+get_vslot(Boxes, Col, Row, PrevBlack, Slot) :-
 
     % Make a slot with the boxes from PrevBlack to Current Row
     Prev is PrevBlack + 1,
     Row1 is Row - 1,
-    construct_vslot(Col, Prev, Row1, Slot).
+    construct_vslot(Boxes, Row, Col, Slot, Incr), !.
 
 % Construct me coordinate pairs from PrevBlack+1 to Col
-construct_vslot(Col, PrevBlack, Row, Slot) :-
+
+construct_vslot(Boxes, Col, PrevBlack, Row, Slot) :-
     %Prev is PrevBlack+1,
 
-    findall((Index, Col), between(PrevBlack, Row, Index), Slot).
+    findall(_X,
+        (between(PrevBlack, Row, Index),
+        get_current(Boxes, Index, Col, X)
+        ),
+    Slot).
 
+get_current(Boxes, X, Y, Z) :-
+    ord_memberchk(box(X, Y, Z), Boxes).
+
+
+*/
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %                        Horizontal                                %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % TODO:
-get_horizontal_slots(N, Slots) :- get_horizontal_slots(N, 1, Slots), !.
+get_horizontal_slots(Boxes, N, Slots) :- get_horizontal_slots(Boxes, N, 1, Slots), !.
 
-get_horizontal_slots(N, N, []). % Base
-get_horizontal_slots(N, Row, Slots) :-
+get_horizontal_slots(_, N, N, []). % Base
+get_horizontal_slots(Boxes, N, Row, Slots) :-
 
     % 1. Recursive Step
     Row1 is Row + 1,
-    get_horizontal_slots(N, Row1, Slots1),
+    get_horizontal_slots(Boxes, N, Row1, Slots1),
 
     % 2. Get the blacks of this Row
     findall(Column, black(Row, Column), Blacks),
 
     % 3. Magic
-    scrap_row(N, Row, Blacks, RowSlots, [], 0),
+    scrap_row(Boxes, N, Row, Blacks, RowSlots, [], 0),
 
     % 4. Concat
     reverse(RowSlots, RowSlots1),
     append(RowSlots1, Slots1, Slots).
 
 % Special Cay
-scrap_row(N, Row, [], Slots, SlotsAcc, PrevBlack) :-
+scrap_row(Boxes, N, Row, [], Slots, SlotsAcc, PrevBlack) :-
 
-    get_hslot(Row, N, PrevBlack, Slot),
+    get_hslot(Boxes, Row, N, PrevBlack, Slot),
 
     length(Slot, LSL),
     (LSL < 2 ->
@@ -154,33 +240,37 @@ scrap_row(N, Row, [], Slots, SlotsAcc, PrevBlack) :-
     ).
 
 % Main case
-scrap_row(N, Row, [Black|Blacks], Slots, SlotsAcc, PrevBlack) :-
+scrap_row(Boxes, N, Row, [Black|Blacks], Slots, SlotsAcc, PrevBlack) :-
 
     % 1. Get the slot from PrevBlack till Current Black
-    get_hslot(Row, Black, PrevBlack, Slot),
+    get_hslot(Boxes, Row, Black, PrevBlack, Slot),
 
     PrevBlack1 is Black,
 
     length(Slot, LSL),
     (LSL < 2 ->
-        scrap_row(N, Row, Blacks, Slots, SlotsAcc, PrevBlack1)
+        scrap_row(Boxes, N, Row, Blacks, Slots, SlotsAcc, PrevBlack1)
     ;
-        scrap_row(N, Row, Blacks, Slots, [Slot|SlotsAcc], PrevBlack1)
+        scrap_row(Boxes, N, Row, Blacks, Slots, [Slot|SlotsAcc], PrevBlack1)
     ).
 
 % get_hslot/ :-
-get_hslot(Row, Col, PrevBlack, Slot) :-
+get_hslot(Boxes, Row, Col, PrevBlack, Slot) :-
 
     % Make a slot with the boxes from PrevBlack to Current Column
     Prev is PrevBlack + 1,
     Col1 is Col - 1,
-    construct_hslot(Row, Prev, Col1, Slot).
+    construct_hslot(Boxes, Row, Prev, Col1, Slot).
 
 % Construct me coordinate pairs from PrevBlack+1 to Col
-construct_hslot(Row, PrevBlack, Col, Slot) :-
+construct_hslot(Boxes, Row, PrevBlack, Col, Slot) :-
     %Prev is PrevBlack+1,
 
-    findall((Row, Index), between(PrevBlack, Col, Index), Slot).
+    findall(X,
+        (between(PrevBlack, Col, Index),
+        member(box(Row, Index, X), Boxes)
+        ),
+    Slot).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %                               Boxes                                         %
