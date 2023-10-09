@@ -1,0 +1,49 @@
+dimension(13).
+
+black(1,5).
+black(1,9).
+black(2,5).
+black(2,9).
+black(3,5).
+black(3,9).
+black(4,7).
+black(5,1).
+black(5,2).
+black(5,3).
+black(5,7).
+black(5,11).
+black(5,12).
+black(5,13).
+black(6,6).
+black(6,7).
+black(6,8).
+black(7,4).
+black(7,5).
+black(7,6).
+black(7,7).
+black(7,8).
+black(7,9).
+black(7,10).
+black(8,6).
+black(8,7).
+black(8,8).
+black(9,1).
+black(9,2).
+black(9,3).
+black(9,7).
+black(9,11).
+black(9,12).
+black(9,13).
+black(10,7).
+black(11,5).
+black(11,9).
+black(12,5).
+black(12,9).
+black(13,5).
+black(13,9).
+
+words([antics,are,area,axle,axon,aye,been,brae,celt,edp,ente,entree,eye,eyer,
+       eyre,hue,hut,ieee,iron,iud,nee,nyt,ore,own,peeps,prows,pyrene,retuse,
+       sane,sere,sitter,slue,sneeze,soln,sos,soy,sue,syst,tad,tart,tepee,
+       terete,tete,trash,urea,waney,wast,ways,wearer,webb,wheen,wit,woe,woe,
+       won,woo,wrest,year,you,your,yup,zan,zap,zoned]).
